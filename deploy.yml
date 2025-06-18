@@ -1,0 +1,80 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js (for any web dependencies)
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+
+    - name: Setup Haskell
+      uses: haskell/actions/setup@v2
+      with:
+        ghc-version: '9.2.8'
+        cabal-version: '3.8.1.0'
+
+    - name: Cache Haskell dependencies
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cabal/packages
+          ~/.cabal/store
+          dist-newstyle
+        key: ${{ runner.os }}-cabal-${{ hashFiles('**/*.cabal', '**/cabal.project') }}
+        restore-keys: |
+          ${{ runner.os }}-cabal-
+
+    - name: Install GHCJS (if needed for compilation)
+      run: |
+        # Only install if we need to compile Haskell to JS
+        # For now, we'll skip this step since the web folder seems ready
+        echo "Skipping GHCJS installation - using pre-built files"
+
+    - name: Build project (if needed)
+      working-directory: ./web
+      run: |
+        # Add any build steps here if needed
+        # For example: cabal build or stack build
+        echo "Building project..."
+        if [ -f "cabal.project" ]; then
+          cabal update
+          cabal build
+        fi
+
+    - name: Prepare web assets
+      run: |
+        # Ensure index.html exists in web folder
+        if [ ! -f "./web/assets/index.html" ]; then
+          echo "Warning: index.html not found in web/assets/"
+        fi
+        
+        # Copy any additional assets if needed
+        echo "Web folder contents:"
+        ls -la ./web/
+
+    - name: Deploy to GitHub Pages
+      if: github.ref == 'refs/heads/main'
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./web
+        # Optional: Custom domain
+        # cname: your-domain.com
+        
+    - name: Summary
+      run: |
+        echo "✅ Deployment completed!"
+        echo "📁 Published directory: ./web"
+        echo "🌐 Your site will be available at: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}"
