@@ -1,0 +1,52 @@
+-- filepath: web/MazeLogic.hs
+module MazeLogic where
+
+import Data.List (nub)
+import System.Random (randomRIO)
+
+type Cell = (Int, Int)
+type Maze = [[Bool]]
+
+-- Generates an empty maze filled with walls (False)
+generateEmptyMaze :: Int -> Maze
+generateEmptyMaze size = replicate size (replicate size False)
+
+-- Generates a maze using Prim's algorithm
+generateMaze :: Int -> IO Maze
+generateMaze size = do
+    let emptyMaze = generateEmptyMaze size
+    prims <- primAlgorithm emptyMaze [(0, 0)] []
+    return (addBorder prims size)
+
+-- Adds a border of walls around the maze
+addBorder :: Maze -> Int -> Maze
+addBorder maze size =
+    let horizontalBorder = replicate (size + 2) False
+        verticalBorder row = [False] ++ row ++ [False]
+    in horizontalBorder : map verticalBorder maze ++ [horizontalBorder]
+
+-- Prim's algorithm for maze generation
+primAlgorithm :: Maze -> [Cell] -> [Cell] -> IO Maze
+primAlgorithm maze frontier visited = do
+    if null frontier
+        then return maze
+        else do
+            index <- randomRIO (0, length frontier - 1)
+            let (current, newFrontier) = removeCell index frontier
+            let newMaze = setCell maze current True
+            let updatedVisited = current : visited
+            let newNeighbours = filter (`notElem` visited) (cellNeighbours current)
+            let updatedFrontier = nub (newFrontier ++ newNeighbours)
+            primAlgorithm newMaze updatedFrontier updatedVisited
+
+-- Helper functions
+removeCell :: Int -> [a] -> (a, [a])
+removeCell index list = let (before, x:after) = splitAt index list in (x, before ++ after)
+
+setCell :: Maze -> Cell -> Bool -> Maze
+setCell maze (x, y) val =
+    let row = maze !! y
+    in take y maze ++ [take x row ++ [val] ++ drop (x + 1) row] ++ drop (y + 1) maze
+
+cellNeighbours :: Cell -> [Cell]
+cellNeighbours (x, y) = [(x-1, y), (x+1, y), (x, y-1), (x, y+1)]

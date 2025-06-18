@@ -1,0 +1,3 @@
+mkdir -p web/src
+touch web/src/MazeLogic.hs
+touch web/src/WebMain.hs
