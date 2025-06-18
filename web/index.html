@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Haskell Maze Path Finder Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .controls {
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .controls input, .controls button {
+            margin: 5px;
+            padding: 8px 12px;
+            font-size: 14px;
+        }
+        
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            padding: 10px 20px;
+        }
+        
+        button:hover {
+            background-color: #0056b3;
+        }
+        
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .maze-container {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        
+        .maze-section {
+            flex: 1;
+        }
+        
+        .maze-section h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        pre {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            overflow: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.2;
+            white-space: pre;
+        }
+        
+        .path-cell {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .wall-cell {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏃‍♂️ Haskell Maze Path Finder Game 🎯</h1>
+        
+        <div class="controls">
+            <label for="width">Width:</label>
+            <input type="number" id="width" value="15" min="5" max="30">
+            
+            <label for="height">Height:</label>
+            <input type="number" id="height" value="15" min="5" max="30">
+            
+            <button onclick="generateNewMaze()">🎲 Generate Maze</button>
+            <button onclick="solveMaze()" id="solveBtn" disabled>🔍 Solve Maze</button>
+        </div>
+        
+        <div id="status"></div>
+        
+        <div class="maze-container">
+            <div class="maze-section">
+                <h3>🏗️ Generated Maze</h3>
+                <pre id="mazeDisplay">Click "Generate Maze" to create a new maze!</pre>
+            </div>
+            
+            <div class="maze-section">
+                <h3>🚀 Solution Path</h3>
+                <pre id="pathDisplay">Generate a maze first, then click "Solve Maze"!</pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load the compiled GHCJS output -->
+    <script src="all.js"></script>
+    
+    <script>
+        let currentMaze = null;
+        
+        function showStatus(message, isError = false) {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${isError ? 'error' : 'success'}`;
+        }
+        
+        function generateNewMaze() {
+            const width = parseInt(document.getElementById('width').value);
+            const height = parseInt(document.getElementById('height').value);
+            
+            if (width < 5 || height < 5 || width > 30 || height > 30) {
+                showStatus('Please enter width and height between 5 and 30', true);
+                return;
+            }
+            
+            showStatus('Generating maze...');
+            
+            try {
+                // Call the Haskell function exported to JavaScript
+                const result = Haskell.Web.WebMain.generateMazeJS(width, height);
+                
+                // Parse the JSON response
+                const mazeData = JSON.parse(result);
+                
+                if (mazeData.success) {
+                    currentMaze = mazeData.maze;
+                    displayMaze(mazeData.maze);
+                    document.getElementById('solveBtn').disabled = false;
+                    document.getElementById('pathDisplay').textContent = 'Maze ready! Click "Solve Maze" to find the path.';
+                    showStatus(`Maze generated successfully! Size: ${mazeData.width}x${mazeData.height}`);
+                } else {
+                    showStatus('Failed to generate maze', true);
+                }
+            } catch (error) {
+                console.error('Error generating maze:', error);
+                showStatus('Error generating maze: ' + error.message, true);
+            }
+        }
+        
+        function solveMaze() {
+            if (!currentMaze) {
+                showStatus('Please generate a maze first!', true);
+                return;
+            }
+            
+            const width = parseInt(document.getElementById('width').value);
+            const height = parseInt(document.getElementById('height').value);
+            
+            showStatus('Solving maze...');
+            
+            try {
+                // Call the Haskell function to solve the maze
+                const result = Haskell.Web.WebMain.solveMazeJS(width, height);
+                
+                // Parse the JSON response
+                const pathData = JSON.parse(result);
+                
+                if (pathData.success && pathData.path.length > 0) {
+                    displayMazeWithPath(pathData.maze, pathData.path);
+                    displayPath(pathData.path);
+                    showStatus(`Path found! Length: ${pathData.pathLength} steps`);
+                } else {
+                    showStatus('No path found in this maze', true);
+                    document.getElementById('pathDisplay').textContent = 'No solution exists for this maze.';
+                }
+            } catch (error) {
+                console.error('Error solving maze:', error);
+                showStatus('Error solving maze: ' + error.message, true);
+            }
+        }
+        
+        function displayMaze(maze) {
+            const mazeDisplay = document.getElementById('mazeDisplay');
+            let mazeStr = '';
+            
+            for (let y = 0; y < maze.length; y++) {
+                for (let x = 0; x < maze[y].length; x++) {
+                    if (maze[y][x] === 1) {
+                        mazeStr += '<span class="wall-cell">█</span>';
+                    } else {
+                        mazeStr += ' ';
+                    }
+                }
+                mazeStr += '\n';
+            }
+            
+            mazeDisplay.innerHTML = mazeStr;
+        }
+        
+        function displayMazeWithPath(maze, path) {
+            const mazeDisplay = document.getElementById('mazeDisplay');
+            let mazeStr = '';
+            
+            // Create a set of path positions for quick lookup
+            const pathSet = new Set(path.map(pos => `${pos[0]},${pos[1]}`));
+            
+            for (let y = 0; y < maze.length; y++) {
+                for (let x = 0; x < maze[y].length; x++) {
+                    if (maze[y][x] === 1) {
+                        mazeStr += '<span class="wall-cell">█</span>';
+                    } else if (pathSet.has(`${x},${y}`)) {
+                        mazeStr += '<span class="path-cell">•</span>';
+                    } else {
+                        mazeStr += ' ';
+                    }
+                }
+                mazeStr += '\n';
+            }
+            
+            mazeDisplay.innerHTML = mazeStr;
+        }
+        
+        function displayPath(path) {
+            const pathDisplay = document.getElementById('pathDisplay');
+            let pathStr = 'Solution path (x, y coordinates):\n\n';
+            
+            for (let i = 0; i < path.length; i++) {
+                pathStr += `${i + 1}. (${path[i][0]}, ${path[i][1]})`;
+                if (i === 0) pathStr += ' ← Start';
+                if (i === path.length - 1) pathStr += ' ← End';
+                pathStr += '\n';
+            }
+            
+            pathDisplay.textContent = pathStr;
+        }
+        
+        // Initialize the page
+        window.addEventListener('load', function() {
+            showStatus('Ready! Click "Generate Maze" to start.');
+        });
+    </script>
+</body>
+</html>
